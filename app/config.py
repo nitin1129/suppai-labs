@@ -22,11 +22,8 @@ class Settings(BaseSettings):
     login_max_failures: int = 5
     login_lock_minutes: int = 15
 
-    # "local" for development, "s3" for production.
-    storage_backend: str = "local"
+    # KYC files and reports are stored here. Must be on a persistent disk and included in backups.
     local_storage_dir: str = "./storage"
-    s3_bucket: str = ""
-    s3_region: str = "ap-south-1"
     signed_url_seconds: int = 300
     public_base_url: str = "http://localhost:8000"
 

@@ -59,7 +59,7 @@ Every move is written to `order_events` (time + who) and queues a member notific
 ## Security notes
 
 - Lab APIs take `lab_id` from the token only. Members only see their own orders.
-- KYC files and reports are in private storage (S3 in production) and opened through signed links that expire in 5 minutes.
+- KYC files and reports are stored on the server's disk (`LOCAL_STORAGE_DIR`), never public, and opened through signed links that expire in 5 minutes. Put that folder on a persistent disk and include it in backups.
 - Admin actions, document views and report downloads go to `audit_log`.
 - Accept runs in one MongoDB transaction (needs a replica set; Atlas has one).
 

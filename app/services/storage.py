@@ -1,4 +1,7 @@
-"""Private file storage. Files are never public; they are opened through short-lived signed links."""
+"""Private file storage on the server's disk (LOCAL_STORAGE_DIR).
+
+Files are never public; they are opened through short-lived signed links served by /files/.
+"""
 import time
 import uuid
 from pathlib import Path
@@ -31,36 +34,13 @@ class LocalStorage:
         return path.read_bytes()
 
 
-class S3Storage:
-    def __init__(self, bucket: str, region: str):
-        import boto3
-
-        self.bucket = bucket
-        self.client = boto3.client("s3", region_name=region)
-
-    def save(self, folder: str, filename: str, data: bytes, content_type: str) -> str:
-        key = f"{folder}/{uuid.uuid4().hex}-{Path(filename).name}"
-        self.client.put_object(
-            Bucket=self.bucket, Key=key, Body=data, ContentType=content_type, ServerSideEncryption="AES256"
-        )
-        return key
-
-    def signed_url(self, key: str) -> str:
-        return self.client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": self.bucket, "Key": key},
-            ExpiresIn=get_settings().signed_url_seconds,
-        )
-
-
 _storage = None
 
 
-def get_storage():
+def get_storage() -> LocalStorage:
     global _storage
     if _storage is None:
-        s = get_settings()
-        _storage = S3Storage(s.s3_bucket, s.s3_region) if s.storage_backend == "s3" else LocalStorage(s.local_storage_dir)
+        _storage = LocalStorage(get_settings().local_storage_dir)
     return _storage
 
 

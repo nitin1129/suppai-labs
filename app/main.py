@@ -1,3 +1,4 @@
+import mimetypes
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Response
@@ -6,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db import ensure_indexes, get_db
 from app.routers import admin, applications, auth, lab, member
 from app.security import verify_signature
-from app.services.storage import LocalStorage, get_storage
+from app.services.storage import get_storage
 
 
 @asynccontextmanager
@@ -36,13 +37,13 @@ async def health():
 
 @app.get("/files/{key:path}", include_in_schema=False)
 async def local_file(key: str, e: int = Query(...), s: str = Query(...)):
-    """Serves files for the local storage backend only. In production S3 signed links are used instead."""
+    """Serves stored files, only through a valid, unexpired signed link."""
     storage = get_storage()
-    if not isinstance(storage, LocalStorage) or not verify_signature(key, e, s):
+    if not verify_signature(key, e, s):
         raise HTTPException(403, "Link is invalid or has expired")
     try:
         data = storage.read(key)
     except FileNotFoundError:
         raise HTTPException(404, "File not found")
-    media = "application/pdf" if key.endswith(".pdf") else "application/octet-stream"
+    media = mimetypes.guess_type(key)[0] or "application/octet-stream"
     return Response(data, media_type=media, headers={"Cache-Control": "no-store"})
