@@ -46,3 +46,4 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db.orders.create_index("reference", unique=True)
     await db.order_events.create_index([("order_id", 1), ("at", 1)])
     await db.admin_users.create_index("email", unique=True)
+    await db["files.files"].create_index("metadata.folder")

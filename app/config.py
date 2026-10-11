@@ -22,8 +22,7 @@ class Settings(BaseSettings):
     login_max_failures: int = 5
     login_lock_minutes: int = 15
 
-    # KYC files and reports are stored here. Must be on a persistent disk and included in backups.
-    local_storage_dir: str = "./storage"
+    # KYC files and reports are stored in MongoDB GridFS (bucket "files"); links to them expire after this many seconds.
     signed_url_seconds: int = 300
     public_base_url: str = "http://localhost:8000"
 

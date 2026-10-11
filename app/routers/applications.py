@@ -91,10 +91,13 @@ async def upload_document(
     if len(data) > get_settings().max_upload_mb * 1024 * 1024:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "File is too large")
 
-    key = get_storage().save(f"kyc/{app_id}", file.filename or kind, data, file.content_type)
+    storage = get_storage()
+    key = await storage.save(f"kyc/{app_id}", file.filename or kind, data, file.content_type)
     entry = {"kind": kind, "filename": file.filename, "key": key, "content_type": file.content_type, "uploaded_at": now()}
-    # One file per kind, except "other".
+    # One file per kind, except "other". The replaced file is deleted from storage.
     if kind != "other":
+        for old in (d for d in app.get("documents", []) if d["kind"] == kind):
+            await storage.delete(old["key"])
         await get_db().lab_applications.update_one({"_id": app_id}, {"$pull": {"documents": {"kind": kind}}})
     await get_db().lab_applications.update_one(
         {"_id": app_id}, {"$push": {"documents": entry}, "$set": {"updated_at": now()}}

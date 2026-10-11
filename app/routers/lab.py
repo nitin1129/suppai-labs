@@ -95,7 +95,10 @@ async def upload_report(order_id: str, file: UploadFile = File(...), lab: Princi
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "File is not a valid PDF")
     if len(data) > get_settings().max_upload_mb * 1024 * 1024:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "File is too large")
-    key = get_storage().save(f"reports/{lab.lab_id}/{order_id}", file.filename or "report.pdf", data, "application/pdf")
+    storage = get_storage()
+    key = await storage.save(f"reports/{lab.lab_id}/{order_id}", file.filename or "report.pdf", data, "application/pdf")
+    if order.get("report_key"):  # re-upload replaces the earlier PDF
+        await storage.delete(order["report_key"])
     await get_db().orders.update_one(
         {"_id": order_id}, {"$set": {"report_key": key, "report_uploaded_at": now(), "report_uploaded_by": lab.id}}
     )

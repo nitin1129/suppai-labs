@@ -31,11 +31,46 @@ APPLICATION = {
 PDF = b"%PDF-1.4 test report"
 
 
+class FakeBucket:
+    """Stands in for AsyncIOMotorGridFSBucket (the in-memory test database has no GridFS)."""
+
+    def __init__(self):
+        self.files = {}
+
+    async def upload_from_stream(self, filename, data, metadata=None):
+        from bson import ObjectId
+
+        fid = ObjectId()
+        self.files[fid] = (filename, data, metadata)
+        return fid
+
+    async def open_download_stream(self, fid):
+        from gridfs.errors import NoFile
+
+        if fid not in self.files:
+            raise NoFile(fid)
+        filename, data, metadata = self.files[fid]
+
+        class Stream:
+            async def read(self_):
+                return data
+
+        st = Stream()
+        st.filename, st.metadata = filename, metadata
+        return st
+
+    async def delete(self, fid):
+        from gridfs.errors import NoFile
+
+        if self.files.pop(fid, None) is None:
+            raise NoFile(fid)
+
+
 @pytest_asyncio.fixture
 async def client(tmp_path):
     mock = AsyncMongoMockClient()["test"]
     dbmod.set_database(None, mock)  # no client → transactions disabled
-    storagemod.set_storage(storagemod.LocalStorage(str(tmp_path)))
+    storagemod.set_storage(storagemod.GridFSStorage(FakeBucket()))
     await mock.admin_users.insert_one({"_id": "admin1", "email": "admin@suppai.in", "password_hash": hash_password("adminpass123")})
     await mock.catalog_tests.insert_one({"_id": "THY-3", "name": "Thyroid Profile", "parameters": 3, "price": 399, "mrp": 600,
                                          "fasting": False, "sample_type": "blood", "report_hours": 24, "home_collection": True, "active": True})
@@ -207,3 +242,25 @@ async def test_hold_reject_and_duplicate_username(client):
     assert (await client.post(f"/admin/labs/applications/{third}/accept", headers=bearer(admin))).status_code == 409
     actions = {a["action"] async for a in client.db.audit_log.find()}
     assert {"application.accepted", "application.hold", "application.reject"} <= actions
+
+
+@pytest.mark.asyncio
+async def test_documents_in_gridfs(client):
+    app_id, token = await apply(client)
+    bucket = storagemod.get_storage().bucket
+    assert len(bucket.files) == 3
+
+    # Re-uploading the same kind replaces the old file; it does not pile up.
+    await client.db.lab_applications.update_one({"_id": app_id}, {"$set": {"status": "on_hold"}})
+    r = await client.post(f"/labs/applications/{app_id}/documents", data={"kind": "pan_card"},
+                          files={"file": ("pan.png", b"\x89PNG new", "image/png")}, headers={"X-Draft-Token": token})
+    assert r.status_code == 201 and len(bucket.files) == 3
+
+    admin = (await client.post("/auth/admin/login", json={"username": "admin@suppai.in", "password": "adminpass123"})).json()["access_token"]
+    docs = (await client.get(f"/admin/labs/applications/{app_id}", headers=bearer(admin))).json()["documents"]
+    url = next(d["url"] for d in docs if d["kind"] == "pan_card").replace("http://localhost:8000", "")
+    r = await client.get(url)
+    assert r.status_code == 200 and r.content == b"\x89PNG new" and r.headers["content-type"] == "image/png"
+
+    # Tampered or wrong links are refused.
+    assert (await client.get(url[:-1] + ("0" if url[-1] != "0" else "1"))).status_code == 403

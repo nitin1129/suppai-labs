@@ -1,4 +1,3 @@
-import mimetypes
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Response
@@ -38,12 +37,14 @@ async def health():
 @app.get("/files/{key:path}", include_in_schema=False)
 async def local_file(key: str, e: int = Query(...), s: str = Query(...)):
     """Serves stored files, only through a valid, unexpired signed link."""
-    storage = get_storage()
     if not verify_signature(key, e, s):
         raise HTTPException(403, "Link is invalid or has expired")
     try:
-        data = storage.read(key)
+        f = await get_storage().read(key)
     except FileNotFoundError:
         raise HTTPException(404, "File not found")
-    media = mimetypes.guess_type(key)[0] or "application/octet-stream"
-    return Response(data, media_type=media, headers={"Cache-Control": "no-store"})
+    return Response(
+        f.data,
+        media_type=f.content_type,
+        headers={"Cache-Control": "no-store", "Content-Disposition": f'inline; filename="{f.filename}"'},
+    )
