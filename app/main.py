@@ -1,8 +1,6 @@
 from contextlib import asynccontextmanager
-
 from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
-
 from app.db import ensure_indexes, get_db
 from app.routers import admin, applications, auth, lab, member
 from app.security import verify_signature
@@ -13,6 +11,7 @@ from app.services.storage import get_storage
 async def lifespan(_: FastAPI):
     await ensure_indexes(get_db())
     yield
+
 
 
 app = FastAPI(title="SuppAI Labs API", version="0.1.0", lifespan=lifespan)
@@ -34,6 +33,7 @@ async def health():
     return {"ok": True}
 
 
+
 @app.get("/files/{key:path}", include_in_schema=False)
 async def local_file(key: str, e: int = Query(...), s: str = Query(...)):
     """Serves stored files, only through a valid, unexpired signed link."""
@@ -48,3 +48,5 @@ async def local_file(key: str, e: int = Query(...), s: str = Query(...)):
         media_type=f.content_type,
         headers={"Cache-Control": "no-store", "Content-Disposition": f'inline; filename="{f.filename}"'},
     )
+
+

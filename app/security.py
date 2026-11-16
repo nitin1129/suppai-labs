@@ -13,6 +13,7 @@ def now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 

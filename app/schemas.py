@@ -12,6 +12,9 @@ MOBILE = r"^[6-9][0-9]{9}$"
 HHMM = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
 
 
+
+
+
 # ---------- Application statuses ----------
 
 class ApplicationStatus(str, Enum):
@@ -35,6 +38,8 @@ class Address(BaseModel):
     city: str
     state: str
     pincode: str = Field(pattern=PINCODE)
+
+
 
 
 class CentreDetails(BaseModel):
